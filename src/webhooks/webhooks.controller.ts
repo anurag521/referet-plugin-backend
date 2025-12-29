@@ -16,14 +16,11 @@ export class WebhooksController {
   @Post('order-created')
   async orderCreated(@Req() req: Request, @Res() res: Response): Promise<void> {
     const order = req.body;
-
-    // Extract shop domain from webhook headers
     const shopDomain = req.headers['x-shopify-shop-domain'] as string;
 
     console.log('Order created webhook received:', {
       orderId: order.id,
       shop: shopDomain,
-      customerId: order.customer?.id,
       email: order.email,
     });
 
@@ -32,10 +29,6 @@ export class WebhooksController {
       (attr) => attr.name === 'referral_code' || attr.name === 'ref_code'
     );
 
-    // TODO: Also check cookies if available/forwarded?
-    // In Shopify webhooks, you don't get cookies.
-    // So the frontend MUST have saved the code into Cart Attributes.
-
     if (!referralAttr) {
       console.log('No referral code found in order');
       res.status(200).send('No referral');
@@ -43,47 +36,51 @@ export class WebhooksController {
     }
 
     const referralCode = referralAttr.value;
-    const orderValue = Math.round(parseFloat(order.total_price || '0') * 100); // Convert to cents/paisa
 
-    const buyerEmail = order.email;
-    const buyerCustomerId = order.customer?.id ? String(order.customer.id) : null;
-    const buyerIp = order.client_details?.browser_ip || order.browser_ip;
+    // Shopify prices are strings e.g "10.00"
+    // We assume backend schema uses Integers for money (paisa/cents) logic
+    // But check if processPurchase handles it. It expects orderData object.
 
-    if (!buyerEmail || !buyerCustomerId) {
-      console.log('Missing buyer email/id, skipping');
-      res.status(200).send('Skipped');
+    if (!order.email || !order.customer) {
+      console.log('No customer data in order');
+      res.status(200).send('No customer data');
       return;
     }
 
-    // 2. Validate Purchase via Service
-    const validationResult = await this.referralService.validatePurchase(
+    // 2. Validate & Process Purchase
+    const result = await this.referralService.processPurchase(
       referralCode,
-      orderValue,
-      buyerCustomerId,
-      buyerEmail,
-      buyerIp
+      {
+        id: order.id.toString(),
+        name: order.name,
+        total_price: order.total_price,
+        created_at: order.created_at,
+        customer: {
+          id: order.customer.id,
+          email: order.email,
+          first_name: order.customer.first_name,
+          last_name: order.customer.last_name,
+          phone: order.customer.phone
+        },
+        browser_ip: order.browser_ip || order.client_details?.browser_ip
+      }
     );
 
-    if (!validationResult.valid) {
-      console.log(`Referral validation failed: ${validationResult.reason}`);
-      res.status(200).send(`Invalid: ${validationResult.reason}`);
+    if (!result.success) {
+      console.log(`Referral validation/processing failed: ${result.reason}`);
+      res.status(200).send(`Invalid: ${result.reason}`);
       return;
     }
 
-    const referral = validationResult.referral!;
+    const referral = result.referral!;
 
-    // 3. Create Reward Record (Pending Approval)
-    // 3. Create Reward Record (Pending Approval)
-    console.log('Referral approved:', referral.id);
-
+    // 3. Create Rewards
     try {
-      await this.rewardsService.createReward(referral.id);
-      console.log('Reward created successfully (pending approval)');
+      await this.rewardsService.createRewardsForReferral(referral.id);
+      console.log('Rewards created successfully (pending approval)');
       res.status(200).send('Referral Processed');
     } catch (error) {
-      console.error('Error creating reward:', error);
-      // Do not fail the webhook response significantly if the referral was valid, 
-      // maybe log it for manual intervention.
+      console.error('Error creating rewards:', error);
       res.status(200).send('Referral Processed (Reward creation failed)');
     }
   }
