@@ -121,4 +121,12 @@ export class AuthService {
             merchant
         };
     }
+
+    async getUserByToken(token: string) {
+        const { data: { user }, error } = await this.supabase.getClient().auth.getUser(token);
+        if (error || !user) {
+            return null;
+        }
+        return user;
+    }
 }

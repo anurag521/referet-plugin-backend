@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as bodyParser from 'body-parser';
+import cookieParser from 'cookie-parser';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -8,9 +9,12 @@ import { Type } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Enable Cookie Parser
+  app.use(cookieParser());
+
   // Enable CORS FIRST before any other middleware
   app.enableCors({
-    origin: true, // Allow all origins
+    origin: true, // Allow all origins (reflects request origin)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
       'Content-Type',
@@ -24,7 +28,7 @@ async function bootstrap() {
       'Access-Control-Allow-Methods',
     ],
     exposedHeaders: ['*'],
-    credentials: false,
+    credentials: true, // Allow cookies
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
