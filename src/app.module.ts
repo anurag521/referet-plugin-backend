@@ -6,6 +6,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { ShopifyModule } from './shopify/shopify.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { AuthModule } from './auth/auth.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
 
 @Module({
     imports: [
@@ -17,6 +18,7 @@ import { AuthModule } from './auth/auth.module';
         AuthModule,
         WebhooksModule,
         ShopifyModule,
+        CampaignsModule,
     ],
     controllers: [AppController],
     providers: [AppService],
