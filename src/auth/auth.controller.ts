@@ -62,6 +62,22 @@ export class AuthController {
         }
     }
 
+    @Post('logout')
+    async logout(@Res() res: Response) {
+        await this.authService.signOut();
+
+        // Clear the cookie
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.clearCookie('access_token', {
+            path: '/',
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax'
+        });
+
+        return res.status(HttpStatus.OK).json({ message: 'Logged out successfully' });
+    }
+
     @Get('status')
     async getStatus(@Query('shop') shop: string, @Req() req: Request, @Res() res: Response) {
         // 1. Check for cookie

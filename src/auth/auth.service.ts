@@ -129,4 +129,13 @@ export class AuthService {
         }
         return user;
     }
+
+    async signOut() {
+        const { error } = await this.supabase.getClient().auth.signOut();
+        if (error) {
+            console.error('SignOut Error:', error);
+            // We don't throw here, just log, because we still want to clear the cookie
+        }
+        return true;
+    }
 }
