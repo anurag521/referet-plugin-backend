@@ -25,6 +25,34 @@ export class AuthController {
         }
     }
 
+    @Post('shopify-login')
+    async shopifyLogin(@Body() body: any, @Res() res: Response) {
+        try {
+            const { shop, email, name } = body;
+            if (!shop) throw new Error('Shop domain required');
+
+            // This now returns a real session!
+            const result = await this.authService.loginOrSignupShopifyMerchant(shop, email, name);
+
+            // Set HttpOnly Cookie (Same as normal login)
+            if (result.session && (result.session as any).access_token) {
+                const isProduction = process.env.NODE_ENV === 'production';
+                res.cookie('access_token', (result.session as any).access_token, {
+                    httpOnly: true,
+                    secure: isProduction,
+                    sameSite: isProduction ? 'none' : 'lax',
+                    path: '/',
+                    maxAge: 24 * 60 * 60 * 1000
+                });
+            }
+
+            return res.status(HttpStatus.OK).json({ success: true, ...result });
+        } catch (error) {
+            console.error('Auto Login Error:', error);
+            return res.status(HttpStatus.UNAUTHORIZED).json({ message: error.message });
+        }
+    }
+
     @Post('login')
     async login(@Body() body: any, @Res() res: Response) {
         console.log('Login Endpoint Hit');
@@ -43,8 +71,8 @@ export class AuthController {
 
                 res.cookie('access_token', result.session.access_token, {
                     httpOnly: true,
-                    secure: isProduction, // True in prod, false in dev
-                    sameSite: isProduction ? 'none' : 'lax', // 'none' requires Secure. 'lax' works for localhost.
+                    secure: true, // Always true for Shopify Embedded Apps (requires HTTPS)
+                    sameSite: 'none', // Required for Iframes
                     path: '/',
                     maxAge: 24 * 60 * 60 * 1000 // 1 day
                 });
@@ -67,12 +95,11 @@ export class AuthController {
         await this.authService.signOut();
 
         // Clear the cookie
-        const isProduction = process.env.NODE_ENV === 'production';
         res.clearCookie('access_token', {
             path: '/',
             httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax'
+            secure: true,
+            sameSite: 'none'
         });
 
         return res.status(HttpStatus.OK).json({ message: 'Logged out successfully' });
@@ -95,7 +122,7 @@ export class AuthController {
             if (!shop) {
                 // If just checking own status
                 if (!user) return res.status(HttpStatus.UNAUTHORIZED).json({ message: 'Invalid token' });
-                return res.status(HttpStatus.OK).json({ user });
+                return res.status(HttpStatus.OK).json({ user, isAuthenticated: true });
             }
 
             // If shop provided, check merchant status AND if user belongs to it

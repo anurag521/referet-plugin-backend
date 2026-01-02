@@ -7,6 +7,10 @@ import { ShopifyModule } from './shopify/shopify.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { AuthModule } from './auth/auth.module';
 import { CampaignsModule } from './campaigns/campaigns.module';
+import { ReferralsModule } from './referrals/referrals.module';
+import { ProductsModule } from './products/products.module';
+import { SessionsModule } from './sessions/sessions.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
     imports: [
@@ -19,6 +23,11 @@ import { CampaignsModule } from './campaigns/campaigns.module';
         WebhooksModule,
         ShopifyModule,
         CampaignsModule,
+        ReferralsModule,
+        ReferralsModule,
+        ProductsModule,
+        SessionsModule,
+        PublicModule,
     ],
     controllers: [AppController],
     providers: [AppService],

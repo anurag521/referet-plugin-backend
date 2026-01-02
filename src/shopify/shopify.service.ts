@@ -256,4 +256,49 @@ export class ShopifyService {
       throw error;
     }
   }
+  /**
+   * Fetch all products from Shopify Admin API (Paginated)
+   * @param shop - Shop domain
+   */
+  async fetchAllProducts(shop: string, accessToken?: string): Promise<any[]> {
+    const token = accessToken || this.TOKEN;
+    if (!token) throw new Error('Access token required for fetchAllProducts');
+
+    let allProducts: any[] = [];
+    let url: string | null = `https://${shop}/admin/api/${this.API_VERSION}/products.json?limit=250`;
+
+    try {
+      while (url) {
+        console.log('Fetching products from:', url);
+        const response = await fetch.default(url, {
+          headers: {
+            'X-Shopify-Access-Token': token,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Failed to fetch products:', errorText);
+          throw new Error(`Failed to fetch products: ${errorText}`);
+        }
+
+        const data = await response.json() as { products: any[] };
+        allProducts = allProducts.concat(data.products);
+
+        // Handle Pagination (Link Header)
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+          const matches = linkHeader.match(/<([^>]+)>; rel="next"/);
+          url = matches ? matches[1] : null;
+        } else {
+          url = null;
+        }
+      }
+      return allProducts;
+    } catch (error) {
+      console.error('Error in fetchAllProducts:', error);
+      throw error;
+    }
+  }
 }

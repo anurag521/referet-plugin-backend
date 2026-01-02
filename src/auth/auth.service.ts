@@ -91,12 +91,25 @@ export class AuthService {
         return { ...merchant, status: 'active' };
     }
 
-    async loginMerchant(data: { email: string; password: string }) {
+    async loginMerchant(data: { email?: string; shopDomain?: string; password: string }) {
         console.log('AuthService.loginMerchant called with:', data);
         if (!data) {
             throw new Error('Data passed to loginMerchant is undefined');
         }
-        const { email, password } = data;
+        let { email, password, shopDomain } = data;
+
+        // If shopDomain is provided but no email, lookup email
+        if (!email && shopDomain) {
+            const mRes = await this.supabase.query('SELECT email FROM merchants WHERE shop_domain = $1', [shopDomain]);
+            if (mRes.rows.length === 0 || !mRes.rows[0].email) {
+                throw new UnauthorizedException('Merchant not found for this shop');
+            }
+            email = mRes.rows[0].email;
+        }
+
+        if (!email) {
+            throw new UnauthorizedException('Email or Shop Domain required');
+        }
 
         const { data: authData, error } = await this.supabase.getClient().auth.signInWithPassword({
             email,
@@ -104,7 +117,7 @@ export class AuthService {
         });
 
         if (error) {
-            throw new UnauthorizedException('Invalid email or password');
+            throw new UnauthorizedException('Invalid password');
         }
 
         // Get merchant details
@@ -138,4 +151,47 @@ export class AuthService {
         }
         return true;
     }
+    // Helper for deterministic password
+    private getShopifyPassword(shopDomain: string): string {
+        // In production, use a strong KDF or HMAC. For now, a simple hash.
+        const crypto = require('crypto');
+        const secret = process.env.SHOPIFY_API_SECRET || 'fallback_secret';
+        return crypto.createHmac('sha256', secret).update(shopDomain).digest('hex');
+    }
+
+    async loginOrSignupShopifyMerchant(shopDomain: string, email?: string, name?: string) {
+        // STRICT LOGIN: Only login if Merchant already exists in DB.
+        // DO NOT create new accounts automatically.
+        // DO NOT generate system users if not present.
+
+        // 1. Check if Merchant exists in DB
+        const existing = await this.supabase.query('SELECT * FROM merchants WHERE shop_domain = $1', [shopDomain]);
+
+        if (existing.rows.length === 0) {
+            // Merchant must sign up first via the Signup Page
+            throw new UnauthorizedException('Merchant account not found. Please complete the signup process first.');
+        }
+
+        const merchant = existing.rows[0];
+
+        // 2. Perform Login (If possible)
+        // We have a problem: We don't know the user's password if they signed up manually.
+        // Options:
+        // A) Return just the Merchant object (Frontend must handle "no token" or use a different auth header).
+        // B) Use a "System/Shadow" session if we previously linked one (but user said "dont generate email...").
+
+        // For now, based on "only login on basis of shop domain", we assume Identification is sufficient.
+        // We will return the Merchant details. 
+        // We CANNOT return a valid Supabase Session User without credentials.
+
+        // However, to prevent Frontend crashes (which expects session object), we return a dummy or cached one?
+        // Let's return null for session and let Frontend handle it, OR check if we can retrieve a session? No.
+
+        return {
+            session: null, // No Supabase Auth session available without password
+            user: null,    // No Supabase User available
+            merchant: merchant // Success!
+        };
+    }
 }
+

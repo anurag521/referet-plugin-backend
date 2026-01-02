@@ -22,8 +22,8 @@ This document tracks the progress of the Referet Plugin against the `SYSTEM_ARCH
 ## Phase 3: Referral Link Generation & Tracking
 **Status: Not Started / Deleted [0%]**
 - [ ] **5.1 Product Page Widget**: `extensions/referral-script` exists (frontend only).
-- [ ] **5.2 Backend Logic**: `ReferralModule` removed.
-- [ ] **5.3 Track Clicks**: `ReferralModule` removed.
+- [ ] **5.2 Backend Logic**: `ReferralModule` .
+- [ ] **5.3 Track Clicks**: `ReferralModule` .
 
 ## Phase 4: Order Webhooks & Referral Attribution
 **Status: Partial / Backend Only [30%]**
