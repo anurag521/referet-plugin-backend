@@ -29,6 +29,15 @@ export class ProductsController {
         return this.productsService.deleteProduct(shop, payload.id);
     }
 
+    @Get('collections')
+    async getCollections(
+        @Query('shop') shop?: string,
+        @Query('merchant_id') merchantId?: string
+    ) {
+        if (!shop && !merchantId) throw new BadRequestException('Shop Domain OR Merchant ID required');
+        return this.productsService.findAllCollections(shop, merchantId);
+    }
+
     @Get()
     async getProducts(
         @Query('shop') shop?: string,

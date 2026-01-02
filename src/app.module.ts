@@ -11,6 +11,7 @@ import { ReferralsModule } from './referrals/referrals.module';
 import { ProductsModule } from './products/products.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { PublicModule } from './public/public.module';
+import { RewardsModule } from './rewards/rewards.module';
 
 @Module({
     imports: [
@@ -24,7 +25,7 @@ import { PublicModule } from './public/public.module';
         ShopifyModule,
         CampaignsModule,
         ReferralsModule,
-        ReferralsModule,
+        RewardsModule,
         ProductsModule,
         SessionsModule,
         PublicModule,

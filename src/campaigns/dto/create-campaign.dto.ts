@@ -76,11 +76,14 @@ export class CreateCampaignDto {
   @Min(0)
   min_order_value?: number = 0;
 
-  @IsOptional()
-  eligible_products?: any; // JSONB
+
 
   @IsOptional()
-  eligible_collections?: any; // JSONB
+  @IsString()
+  eligible_type?: string = 'all';
+
+  @IsOptional()
+  eligible_ids?: string[] = [];
 
   @IsOptional()
   @IsString()

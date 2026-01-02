@@ -301,4 +301,66 @@ export class ShopifyService {
       throw error;
     }
   }
+
+  // --- Collection Sync Methods ---
+
+  async fetchCustomCollections(shop: string, accessToken?: string): Promise<any[]> {
+    return this.fetchPaginated(shop, accessToken, 'custom_collections');
+  }
+
+  async fetchSmartCollections(shop: string, accessToken?: string): Promise<any[]> {
+    return this.fetchPaginated(shop, accessToken, 'smart_collections');
+  }
+
+  // "Collects" link Products to Custom Collections
+  async fetchCollects(shop: string, accessToken?: string): Promise<any[]> {
+    return this.fetchPaginated(shop, accessToken, 'collects');
+  }
+
+  // Helper for pagination to avoid code duplication
+  private async fetchPaginated(shop: string, accessToken: string | undefined, resource: string): Promise<any[]> {
+    const token = accessToken || this.TOKEN;
+    if (!token) throw new Error(`Access token required for ${resource}`);
+
+    let allItems: any[] = [];
+    let url: string | null = `https://${shop}/admin/api/${this.API_VERSION}/${resource}.json?limit=250`;
+
+    try {
+      while (url) {
+        console.log(`Fetching ${resource} from:`, url);
+        const response = await fetch.default(url, {
+          headers: {
+            'X-Shopify-Access-Token': token,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch ${resource}: ${errorText}`);
+        }
+
+        const data = await response.json() as any;
+        const items = data[resource];
+        if (Array.isArray(items)) {
+          allItems = allItems.concat(items);
+        }
+
+        // Handle Pagination
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+          const matches = linkHeader.match(/<([^>]+)>; rel="next"/);
+          url = matches ? matches[1] : null;
+        } else {
+          url = null;
+        }
+      }
+      return allItems;
+    } catch (error) {
+      console.error(`Error fetching ${resource}:`, error);
+      throw error;
+    }
+  }
 }
+
+

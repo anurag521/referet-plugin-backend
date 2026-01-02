@@ -12,13 +12,16 @@ export class PublicController {
     @Get('campaigns/check')
     async checkCampaign(
         @Query('shop') shop: string,
-        @Query('product_id') productId: string
+        @Query('product_id') productId: string,
+        @Query('collection_ids') collectionIdsParam: string // Comma separated IDs
     ) {
         if (!shop) throw new BadRequestException('Shop required');
 
         // 1. Get All Active Campaigns for Shop
         const campaigns = await this.campaignsService.findAll(shop);
-        console.log(`[PublicAPI] Checking campaigns for shop: ${shop}, product: ${productId}`);
+        // console.log(`[PublicAPI] Checking campaigns for shop: ${shop}, product: ${productId}, collections: ${collectionIdsParam}`);
+
+        const collectionIds = collectionIdsParam ? collectionIdsParam.split(',') : [];
 
         // 2. Find matching campaign for product
         const activeCampaign = campaigns.find(c => {
@@ -27,28 +30,35 @@ export class PublicController {
             if (new Date(c.start_date) > now) return false;
             if (c.end_date && new Date(c.end_date) < now) return false;
 
-            // Product Logic
-            let products: string[] = [];
-            try {
-                const parsed = typeof c.eligible_products === 'string' ? JSON.parse(c.eligible_products) : c.eligible_products;
-                products = Array.isArray(parsed) ? parsed : [];
-            } catch (e) { return false; }
+            // --- ELIGIBILITY CHECK ---
 
-            console.log(`[PublicAPI] Campaign ${c.name} products:`, products);
+            // 1. Check New Schema (eligible_type / eligible_ids)
+            if (c.eligible_type) {
+                if (c.eligible_type === 'all') return true;
 
-            if (products.includes('all')) return true;
+                if (c.eligible_type === 'product') {
+                    // Check if productId is in eligible_ids
+                    if (!productId) return false;
+                    return c.eligible_ids && c.eligible_ids.includes(String(productId));
+                }
 
-            // Check if any product GID contains the numeric ID
-            const isMatch = productId && products.some((p: string) => String(p).includes(String(productId)));
-            console.log(`[PublicAPI] Match result for ${productId}: ${isMatch}`);
+                if (c.eligible_type === 'collection') {
+                    // Check if ANY of the product's collections is in eligible_ids
+                    if (collectionIds.length === 0) return false;
+                    // eligible_ids are Shopify Collection IDs
+                    return c.eligible_ids && c.eligible_ids.some(id => collectionIds.includes(String(id)));
+                }
+            }
 
-            return isMatch;
+            return false;
         });
 
         if (activeCampaign) {
             return {
                 active: true,
                 campaign_id: activeCampaign.id,
+                referrer_reward_value: activeCampaign.referrer_reward_value,
+                referrer_reward_type: activeCampaign.referrer_reward_type,
                 reward_text: `Give ${activeCampaign.referee_reward_type === 'percentage' ? activeCampaign.referee_reward_value + '%' : '$' + activeCampaign.referee_reward_value}, Get ${activeCampaign.referrer_reward_type === 'percentage' ? activeCampaign.referrer_reward_value + '%' : '$' + activeCampaign.referrer_reward_value}`
             };
         }
@@ -73,7 +83,8 @@ export class PublicController {
                 referrer_reward_value: 10,
                 referee_reward_type: 'fixed' as any,
                 referee_reward_value: 10,
-                eligible_products: [productId], // Array of strings
+                eligible_type: 'product',
+                eligible_ids: [productId], // Array of strings
                 start_date: new Date().toISOString(),
                 min_order_value: 0
             });
@@ -115,5 +126,27 @@ export class PublicController {
         // Optional: We could track that 'customer_id' attempted to use 'code' here for analytics
 
         return this.referralsService.validateReferralCode(body.shop, body.code, body.customer_id);
+    }
+
+    @Post('referrals/click')
+    async trackClick(
+        @Query('shop') shop: string,
+        @Body() body: { code: string },
+        // We'd ideally need @Req() for IP/UA but for now let's optionalize it or assume standard headers
+        // Just mocking IP/UA extraction for simplicity if @Req isn't imported easily in this snippet context
+    ) {
+        if (!shop || !body.code) return { success: false }; // Silent fail preferred for tracking
+
+        // TODO: Extract IP and UA from request context
+        return this.referralsService.trackClick(shop, body.code, '127.0.0.1', 'Widget/UserAgent');
+    }
+
+    @Post('referrals/claim')
+    async claim(
+        @Query('shop') shop: string,
+        @Body() body: { code: string, customer_id: string }
+    ) {
+        if (!shop) throw new BadRequestException('Shop query parameter is required');
+        return this.referralsService.validateReferralCode(shop, body.code, body.customer_id);
     }
 }

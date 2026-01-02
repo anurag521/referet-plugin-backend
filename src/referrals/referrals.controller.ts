@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Query, BadRequestException } from '@nestjs/common';
 import { ReferralsService } from './referrals.service';
 import { GenerateReferralDto } from './dto/generate-referral.dto';
+import { ClaimReferralDto } from './dto/claim-referral.dto';
 
 @Controller('api/referrals')
 export class ReferralsController {

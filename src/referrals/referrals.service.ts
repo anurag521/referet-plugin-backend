@@ -160,8 +160,11 @@ export class ReferralsService {
         }
 
         // --- Save Referee Claim ---
+        console.log(`[Referral] Validating code ${code} for customer ${refereeCustomerId}`);
+
         if (refereeCustomerId) {
             try {
+                console.log(`[Referral] Attempting to save claim for ${refereeCustomerId}`);
                 // Ensure we don't save duplicate claims for same code+customer
                 await this.db.query(
                     `INSERT INTO referee_claims (merchant_id, referral_code, referee_customer_id)
@@ -174,6 +177,8 @@ export class ReferralsService {
                 console.error("Error saving referee claim:", e);
                 // Don't fail the validation just because save failed, but good to know
             }
+        } else {
+            console.log(`[Referral] No customer ID provided, skipping claim save.`);
         }
 
         // TODO: Generate or Retrieve actual Shopify Discount Code here.
@@ -186,5 +191,47 @@ export class ReferralsService {
             reward_type: data.referee_reward_type,
             message: 'Referral Valid!'
         };
+    }
+    async trackClick(shopDomain: string, code: string, ip?: string, userAgent?: string) {
+        const merchantId = await this.getMerchantId(shopDomain);
+
+        try {
+            // 1. Check for unique click (debounce 24h)
+            // If ip is missing, we can't debounce effectively, so we might skip the check or fall back to UA (rare).
+            // Let's assume IP is present usually.
+            let isUnique = true;
+            if (ip) {
+                const recentClick = await this.db.query(
+                    `SELECT id FROM referral_clicks 
+                     WHERE referral_code = $1 AND ip_address = $2 
+                     AND created_at > NOW() - INTERVAL '24 hours'
+                     LIMIT 1`,
+                    [code, ip]
+                );
+                if (recentClick.rows.length > 0) {
+                    isUnique = false;
+                }
+            }
+
+            // 2. Always Log the Click (Security/Audit)
+            await this.db.query(
+                `INSERT INTO referral_clicks (referral_code, ip_address, user_agent, source)
+                 VALUES ($1, $2, $3, 'widget')`,
+                [code, ip, userAgent]
+            );
+
+            // 3. Increment Counter only if unique
+            if (isUnique) {
+                await this.db.query(
+                    `UPDATE referral_codes SET clicks = clicks + 1 WHERE code = $1 AND merchant_id = $2`,
+                    [code, merchantId]
+                );
+            }
+
+            return { success: true, unique: isUnique };
+        } catch (e) {
+            console.error('[Referrals] Track Click Failed:', e.message);
+            return { success: false };
+        }
     }
 }

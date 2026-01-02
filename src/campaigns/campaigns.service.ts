@@ -48,8 +48,9 @@ export class CampaignsService {
         reward_type, who_gets_reward, 
         referrer_reward_type, referrer_reward_value, 
         referee_reward_type, referee_reward_value, 
-        min_order_value, eligible_products, eligible_collections,
-        usage_limit, reward_issuance, reward_issuance_days, reward_expiry_days
+        min_order_value,
+        usage_limit, reward_issuance, reward_issuance_days, reward_expiry_days,
+        eligible_type, eligible_ids
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
       ) RETURNING *
@@ -68,12 +69,16 @@ export class CampaignsService {
       dto.referee_reward_type,
       dto.referee_reward_value,
       dto.min_order_value || 0,
-      JSON.stringify(dto.eligible_products || ["all"]),
-      JSON.stringify(dto.eligible_collections || []),
       dto.usage_limit || 'unlimited',
       dto.reward_issuance || 'instant',
       dto.reward_issuance_days || 0,
-      dto.reward_expiry_days || 365
+      dto.reward_expiry_days || 365,
+      // Default to 'all' if not provided (though DTO should have these now if we updated it... wait, CreateCampaignDto doesn't have them yet?)
+      // I need to ADD eligible_type/ids to DTO first?
+      // User said "remove eligible_products", but I need to make sure eligible_type is there.
+      // Checking DTO again...
+      (dto as any).eligible_type || 'all',
+      JSON.stringify((dto as any).eligible_ids || [])
     ];
 
     try {
@@ -139,8 +144,11 @@ export class CampaignsService {
     if (dto.referee_reward_type) addField('referee_reward_type', dto.referee_reward_type);
     if (dto.referee_reward_value !== undefined) addField('referee_reward_value', dto.referee_reward_value);
     if (dto.min_order_value !== undefined) addField('min_order_value', dto.min_order_value);
-    if (dto.eligible_products) addField('eligible_products', JSON.stringify(dto.eligible_products));
-    if (dto.eligible_collections) addField('eligible_collections', JSON.stringify(dto.eligible_collections));
+
+    // New Eligibility Schema
+    if (dto.eligible_type) addField('eligible_type', dto.eligible_type);
+    if (dto.eligible_ids) addField('eligible_ids', JSON.stringify(dto.eligible_ids));
+
     if (dto.usage_limit) addField('usage_limit', dto.usage_limit);
     if (dto.reward_issuance) addField('reward_issuance', dto.reward_issuance);
     if (dto.reward_issuance_days !== undefined) addField('reward_issuance_days', dto.reward_issuance_days);
